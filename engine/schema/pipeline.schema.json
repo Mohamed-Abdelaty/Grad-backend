@@ -1,0 +1,159 @@
+{
+  "$defs": {
+    "EdgeConfig": {
+      "additionalProperties": false,
+      "description": "A directed edge between two nodes.",
+      "properties": {
+        "from": {
+          "minLength": 1,
+          "title": "From",
+          "type": "string"
+        },
+        "to": {
+          "minLength": 1,
+          "title": "To",
+          "type": "string"
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "title": "EdgeConfig",
+      "type": "object"
+    },
+    "NodeConfig": {
+      "additionalProperties": false,
+      "description": "A single pipeline node.",
+      "properties": {
+        "id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "source",
+            "transform",
+            "sink"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "plugin": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Plugin",
+          "type": "string"
+        },
+        "config": {
+          "additionalProperties": true,
+          "title": "Config",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "plugin"
+      ],
+      "title": "NodeConfig",
+      "type": "object"
+    },
+    "PipelineConfig": {
+      "additionalProperties": false,
+      "description": "The inner ``pipeline`` object of the contract.",
+      "properties": {
+        "id": {
+          "format": "uuid",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        },
+        "schedule": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Schedule"
+        },
+        "nodes": {
+          "items": {
+            "$ref": "#/$defs/NodeConfig"
+          },
+          "minItems": 1,
+          "title": "Nodes",
+          "type": "array"
+        },
+        "edges": {
+          "items": {
+            "$ref": "#/$defs/EdgeConfig"
+          },
+          "title": "Edges",
+          "type": "array"
+        },
+        "retry": {
+          "$ref": "#/$defs/RetryConfig"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "nodes"
+      ],
+      "title": "PipelineConfig",
+      "type": "object"
+    },
+    "RetryConfig": {
+      "additionalProperties": false,
+      "description": "Retry policy. ``max_attempts`` INCLUDES the initial attempt.",
+      "properties": {
+        "max_attempts": {
+          "default": 3,
+          "maximum": 10,
+          "minimum": 1,
+          "title": "Max Attempts",
+          "type": "integer"
+        },
+        "backoff_seconds": {
+          "default": 5.0,
+          "maximum": 3600.0,
+          "minimum": 0.0,
+          "title": "Backoff Seconds",
+          "type": "number"
+        }
+      },
+      "title": "RetryConfig",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Top-level document: ``{\"pipeline\": {...}}``.",
+  "properties": {
+    "pipeline": {
+      "$ref": "#/$defs/PipelineConfig"
+    }
+  },
+  "required": [
+    "pipeline"
+  ],
+  "title": "PipelineDocument",
+  "type": "object"
+}

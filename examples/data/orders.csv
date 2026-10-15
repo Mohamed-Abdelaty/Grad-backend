@@ -1,0 +1,6 @@
+transaction_id,customer_id,amount,status
+t1,c1,50,paid
+t2,c2,150,paid
+t3,c1,200,pending
+t4,c3,30,paid
+t5,c2,500,paid
