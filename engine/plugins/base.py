@@ -112,3 +112,5 @@ class BaseSink(BasePlugin):
     def process(self, batch: Batch) -> int:
         """Lifecycle alias for :meth:`write` (sink ``process`` step)."""
         return self.write(batch)
+
+from .base_compat import Plugin

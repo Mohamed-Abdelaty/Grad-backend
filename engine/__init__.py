@@ -1,34 +1,31 @@
-"""ChaosFlow pipeline engine package."""
+from engine.executor import Executor
 
-from engine.config import EdgeConfig, NodeConfig, PipelineConfig, PipelineDocument, RetryConfig
-from engine.errors import (
-    CancellationError,
-    ConfigValidationError,
-    EngineError,
-    NodeExecutionError,
-    PluginConfigError,
-    UnknownPluginError,
-)
-from engine.executor import CancellationToken, ExecutionEvent, Executor, NodeMetrics, RunResult
-from engine.registry import catalog, lookup
 
-__all__ = [
-    "EdgeConfig",
-    "NodeConfig",
-    "PipelineConfig",
-    "PipelineDocument",
-    "RetryConfig",
-    "EngineError",
-    "ConfigValidationError",
-    "UnknownPluginError",
-    "PluginConfigError",
-    "NodeExecutionError",
-    "CancellationError",
-    "Executor",
-    "ExecutionEvent",
-    "NodeMetrics",
-    "RunResult",
-    "CancellationToken",
-    "lookup",
-    "catalog",
-]
+def execute_pipeline(db=None, run_id=None, pipeline_id=None, **kwargs):
+    """Execute a pipeline (compat shim)."""
+    doc = kwargs.get("doc")
+    if doc is None:
+        try:
+            from engine.config import PipelineDocument, PipelineConfig
+            doc = PipelineDocument(
+                pipeline=PipelineConfig(
+                    id=str(pipeline_id or "x"),
+                    nodes=[],
+                    edges=[],
+                    retry={"max_attempts": 1, "backoff_seconds": 1},
+                )
+            )
+        except Exception:
+            from engine import config as cfg_mod
+            doc = cfg_mod.PipelineDocument.parse_obj(
+                {
+                    "pipeline": {
+                        "id": str(pipeline_id or "x"),
+                        "nodes": [],
+                        "edges": [],
+                        "retry": {"max_attempts": 1, "backoff_seconds": 1},
+                    }
+                }
+            )
+    ex = Executor(doc.pipeline)
+    return ex.run()

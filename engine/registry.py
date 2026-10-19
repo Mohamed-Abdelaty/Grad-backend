@@ -96,3 +96,7 @@ def catalog() -> list[dict[str, Any]]:
 def clear() -> None:  # pragma: no cover
     """Clear the registry (used only in tests that register fakes)."""
     _REGISTRY.clear()
+
+registry = type('R', (), {})()
+
+from .registry_compat import registry, _CompatRegistry  # noqa: F401

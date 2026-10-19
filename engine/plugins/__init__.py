@@ -10,3 +10,4 @@ from engine.plugins.transforms import (  # noqa: F401
     join_transform,
     map_transform,
 )
+from engine.registry import catalog, lookup, registry  # noqa: F401
