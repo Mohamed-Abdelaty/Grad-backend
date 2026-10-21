@@ -1,6 +1,5 @@
 import logging
 import logging.config
-import os
 from unittest.mock import patch
 
 from app.core import logging_config

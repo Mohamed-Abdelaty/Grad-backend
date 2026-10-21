@@ -57,6 +57,10 @@ ignore = [
   "B008", # FastAPI Depends()/Query() in defaults is the framework idiom
 ]
 
+[tool.ruff.lint.per-file-ignores]
+"scripts/*" = ["E402", "B011", "UP031", "F841", "E741", "B007"]
+"tests/*" = ["B011", "SIM105"]
+
 [tool.mypy]
 python_version = "3.11"
 strict = false
