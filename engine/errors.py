@@ -6,6 +6,8 @@ API) can report the failing node id, error type, and details consistently.
 
 from __future__ import annotations
 
+from typing import Any
+
 
 class EngineError(Exception):
     """Base class for all engine errors."""
@@ -17,6 +19,23 @@ class EngineError(Exception):
 
 class ConfigValidationError(EngineError):
     """Pipeline configuration is invalid."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        details: dict[str, object] | None = None,
+        errors: list[str] | None = None,
+    ) -> None:
+        if details is None and errors is not None:
+            details = {"errors": errors}
+        elif details is not None and errors is not None:
+            details["errors"] = errors
+        super().__init__(message, details=details)
+        raw_errors = details.get("errors") if details else None
+        self.errors: list[str] = errors or (
+            [str(x) for x in raw_errors] if isinstance(raw_errors, list) else []
+        )
 
 
 class UnknownPluginError(EngineError):
@@ -53,12 +72,14 @@ class NodeExecutionError(EngineError):
         *,
         error_type: str = "NodeExecutionError",
         attempts: int = 1,
+        metrics: dict[str, Any] | None = None,
         details: dict[str, object] | None = None,
     ) -> None:
         super().__init__(f"Node '{node_id}' failed: {message}", details=details)
         self.node_id = node_id
         self.error_type = error_type
         self.attempts = attempts
+        self.metrics: dict[str, Any] = metrics or {}
 
 
 class CancellationError(EngineError):

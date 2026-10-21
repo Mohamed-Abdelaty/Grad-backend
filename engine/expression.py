@@ -20,6 +20,7 @@ ordering comparisons against ``None`` are false rather than crashing).
 from __future__ import annotations
 
 import ast
+import functools
 from typing import Any
 
 
@@ -29,17 +30,21 @@ class UnsafeExpressionError(ValueError):
 
 _ALLOWED_BINOPS = (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Mod)
 _ALLOWED_CMPOPS = (ast.Eq, ast.NotEq, ast.Lt, ast.LtE, ast.Gt, ast.GtE, ast.In, ast.NotIn)
+_MAX_EXPR_DEPTH = 50
 
 
+@functools.lru_cache(maxsize=1024)
 def compile_expression(expression: str) -> ast.Expression:
     """Parse ``expression`` and reject disallowed syntax eagerly."""
     if not expression or not expression.strip():
         raise UnsafeExpressionError("Filter expression must not be empty")
+    if len(expression) > 10000:
+        raise UnsafeExpressionError("Expression is too long (maximum 10,000 characters)")
     try:
         tree = ast.parse(expression, mode="eval")
     except SyntaxError as exc:
         raise UnsafeExpressionError(f"Invalid filter expression: {exc}") from exc
-    _check_node(tree)
+    _check_node(tree, depth=0)
     return tree
 
 
@@ -49,24 +54,26 @@ def evaluate(expression: str, record: dict[str, Any]) -> bool:
     return bool(_eval(tree.body, record))
 
 
-def _check_node(node: ast.AST) -> None:
-    """Recursively reject AST nodes outside the allow-list."""
+def _check_node(node: ast.AST, depth: int = 0) -> None:
+    """Recursively reject AST nodes outside the allow-list with depth protection."""
+    if depth > _MAX_EXPR_DEPTH:
+        raise UnsafeExpressionError(f"Expression exceeds maximum nesting depth of {_MAX_EXPR_DEPTH}")
     if isinstance(node, ast.Expression):
-        _check_node(node.body)
+        _check_node(node.body, depth + 1)
     elif isinstance(node, ast.BoolOp):
         if not isinstance(node.op, (ast.And, ast.Or)):
             raise UnsafeExpressionError(f"Operator not allowed: {type(node.op).__name__}")
         for value in node.values:
-            _check_node(value)
+            _check_node(value, depth + 1)
     elif isinstance(node, ast.UnaryOp):
         if not isinstance(node.op, (ast.Not, ast.USub)):
             raise UnsafeExpressionError(f"Unary operator not allowed: {type(node.op).__name__}")
-        _check_node(node.operand)
+        _check_node(node.operand, depth + 1)
     elif isinstance(node, ast.BinOp):
         if not isinstance(node.op, _ALLOWED_BINOPS):
             raise UnsafeExpressionError(f"Operator not allowed: {type(node.op).__name__}")
-        _check_node(node.left)
-        _check_node(node.right)
+        _check_node(node.left, depth + 1)
+        _check_node(node.right, depth + 1)
     elif isinstance(node, ast.Compare):
         for op, comparator in zip(node.ops, node.comparators, strict=True):
             if isinstance(op, (ast.Is, ast.IsNot)):
@@ -75,9 +82,9 @@ def _check_node(node: ast.AST) -> None:
                 continue
             if not isinstance(op, _ALLOWED_CMPOPS):
                 raise UnsafeExpressionError(f"Comparison not allowed: {type(op).__name__}")
-        _check_node(node.left)
+        _check_node(node.left, depth + 1)
         for comparator in node.comparators:
-            _check_node(comparator)
+            _check_node(comparator, depth + 1)
     elif isinstance(node, ast.Name):
         if node.id in {"True", "False", "None"}:
             return
@@ -86,7 +93,7 @@ def _check_node(node: ast.AST) -> None:
         pass
     elif isinstance(node, (ast.List, ast.Tuple)):
         for elt in node.elts:
-            _check_node(elt)
+            _check_node(elt, depth + 1)
     else:
         raise UnsafeExpressionError(f"Expression construct not allowed: {type(node).__name__}")
 
@@ -107,23 +114,34 @@ def _eval(node: ast.AST, record: dict[str, Any]) -> Any:
                 return True
         return result
     if isinstance(node, ast.UnaryOp):
+        val = _eval(node.operand, record)
         if isinstance(node.op, ast.Not):
-            return not _eval(node.operand, record)
-        return -_eval(node.operand, record)  # USub
+            return not val
+        if val is None:
+            return None
+        try:
+            return -val
+        except TypeError:
+            return None
     if isinstance(node, ast.BinOp):
         left = _eval(node.left, record)
         right = _eval(node.right, record)
         if left is None or right is None:
             return None
-        if isinstance(node.op, ast.Add):
-            return left + right
-        if isinstance(node.op, ast.Sub):
-            return left - right
-        if isinstance(node.op, ast.Mult):
-            return left * right
-        if isinstance(node.op, ast.Div):
-            return left / right
-        return left % right  # Mod
+        try:
+            if isinstance(node.op, ast.Add):
+                return left + right
+            if isinstance(node.op, ast.Sub):
+                return left - right
+            if isinstance(node.op, ast.Mult):
+                return left * right
+            if isinstance(node.op, ast.Div):
+                return None if right == 0 else left / right
+            if isinstance(node.op, ast.Mod):
+                return None if right == 0 else left % right
+        except (TypeError, ValueError, ZeroDivisionError):
+            return None
+        return None
     if isinstance(node, ast.Compare):
         left = _eval(node.left, record)
         for op, comparator_node in zip(node.ops, node.comparators, strict=True):

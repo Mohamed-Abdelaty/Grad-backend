@@ -20,13 +20,14 @@ from __future__ import annotations
 import contextlib
 import threading
 import time
+from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
 import engine.plugins  # noqa: F401  (registers built-ins)
-from engine.config import PipelineConfig, PipelineDocument
+from engine.config import PipelineConfig, PipelineDocument, collect_all_pipeline_errors
 from engine.errors import (
     CancellationError,
     ConfigValidationError,
@@ -100,9 +101,29 @@ class CancellationToken:
 def validate_pipeline_dict(payload: dict[str, Any]) -> PipelineDocument:
     """Validate a raw ``{"pipeline": ...}`` document structurally + per-plugin.
 
-    Raises:
-        ConfigValidationError: with field-level ``details`` on any failure.
+    Collects all errors so callers see complete diagnostics instead of failing fast.
     """
+    errors = collect_all_pipeline_errors(payload)
+    if errors:
+        if len(errors) == 1:
+            err = errors[0]
+            if "Unknown " in err and " plugin" in err:
+                parts = err.split("Unknown ")[1].split(" plugin: '")
+                cat = parts[0]
+                pname = parts[1].rstrip("'")
+                raise UnknownPluginError(cat, pname)
+            if err.startswith("Node '") and ": " in err:
+                node_id = err.split("Node '")[1].split("'")[0]
+                msg = err.split(": ", 1)[1]
+                raise PluginConfigError(node_id, msg)
+            raise ConfigValidationError(err, details={"error": err})
+        raise ConfigValidationError(
+            f"Pipeline validation failed with {len(errors)} error(s):\n"
+            + "\n".join(f"- {e}" for e in errors),
+            details={"errors": errors},
+            errors=errors,
+        )
+
     try:
         doc = PipelineDocument.model_validate(payload)
     except Exception as exc:
@@ -124,12 +145,15 @@ class Executor:
         event_callback: EventCallback | None = None,
         batch_size: int = 500,
         max_backoff_seconds: float = 60.0,
+        sleep_fn: Callable[[float], None] | None = None,
     ) -> None:
         self.pipeline = pipeline
         self._callback = event_callback
         self.batch_size = max(1, batch_size)
         self.max_backoff = max_backoff_seconds
+        self._sleep_fn = sleep_fn
         self._events: list[ExecutionEvent] = []
+        self.last_metrics: dict[str, NodeMetrics] = {}
 
     # -- helpers ---------------------------------------------------------
     def _emit(self, event: ExecutionEvent) -> None:
@@ -139,6 +163,11 @@ class Executor:
                 self._callback(event)  # callbacks must never break execution
 
     def _sleep_interruptible(self, seconds: float, cancellation: CancellationToken | None) -> None:
+        if self._sleep_fn is not None:
+            self._sleep_fn(seconds)
+            if cancellation is not None and cancellation.is_cancelled:
+                raise CancellationError()
+            return
         deadline = time.monotonic() + max(0.0, seconds)
         while time.monotonic() < deadline:
             if cancellation is not None and cancellation.is_cancelled:
@@ -148,33 +177,56 @@ class Executor:
     # -- validation ------------------------------------------------------
     def validate(self) -> None:
         """Validate plugin existence + plugin configs. Raises typed errors."""
+        errors: list[str] = []
+        unknown_err: UnknownPluginError | None = None
+        plugin_err: PluginConfigError | None = None
+
         for node in self.pipeline.nodes:
             try:
                 plugin_cls = lookup(node.type, node.plugin)
-            except UnknownPluginError:
-                raise
-            except EngineError:
-                raise
+            except UnknownPluginError as exc:
+                errors.append(str(exc))
+                if unknown_err is None:
+                    unknown_err = exc
+                continue
+            except EngineError as exc:
+                errors.append(str(exc))
+                continue
             plugin = plugin_cls(node.config)
             if not isinstance(plugin, (BaseSource, BaseTransform, BaseSink)):
-                raise ConfigValidationError(
-                    f"Node '{node.id}': plugin has wrong category base class"
-                )
+                errors.append(f"Node '{node.id}': plugin has wrong category base class")
+                continue
             try:
                 plugin.validate_config()
             except PluginConfigError as exc:
-                # Attach the real node id (plugins use "?" as placeholder).
-                raise PluginConfigError(node.id, str(exc).split(": ", 1)[-1]) from exc
+                msg = str(exc).split(": ", 1)[-1]
+                errors.append(f"Node '{node.id}': {msg}")
+                if plugin_err is None:
+                    plugin_err = PluginConfigError(node.id, msg)
             except ValueError as exc:
-                raise PluginConfigError(node.id, str(exc)) from exc
-            # Category sanity: source nodes must be sources, etc.
+                errors.append(f"Node '{node.id}': {exc}")
+                if plugin_err is None:
+                    plugin_err = PluginConfigError(node.id, str(exc))
             expected = {"source": BaseSource, "transform": BaseTransform, "sink": BaseSink}[
                 node.type
             ]
             if not isinstance(plugin, expected):
-                raise ConfigValidationError(
+                errors.append(
                     f"Node '{node.id}': plugin '{node.plugin}' is not a {node.type} plugin"
                 )
+
+        if len(errors) == 1:
+            if unknown_err is not None:
+                raise unknown_err
+            if plugin_err is not None:
+                raise plugin_err
+            raise ConfigValidationError(errors[0])
+        elif len(errors) > 1:
+            raise ConfigValidationError(
+                f"Plugin validation failed with {len(errors)} error(s): " + "; ".join(errors),
+                details={"errors": errors},
+                errors=errors,
+            )
 
     def topological_order(self) -> list[str]:
         """Return node ids in execution order; raise on cycles."""
@@ -183,10 +235,10 @@ class Executor:
         for edge in self.pipeline.edges:
             adjacency[edge.source].append(edge.target)
             indegree[edge.target] += 1
-        queue = sorted(nid for nid, deg in indegree.items() if deg == 0)
+        queue = deque(sorted(nid for nid, deg in indegree.items() if deg == 0))
         order: list[str] = []
         while queue:
-            current = queue.pop(0)
+            current = queue.popleft()
             order.append(current)
             for nxt in sorted(adjacency[current]):
                 indegree[nxt] -= 1
@@ -196,9 +248,20 @@ class Executor:
             raise ConfigValidationError("Pipeline graph must be acyclic (cycle detected)")
         return order
 
+    def _get_descendants(self, node_id: str) -> set[str]:
+        """Return all downstream descendants of node_id in the DAG."""
+        descendants: set[str] = set()
+        queue = deque(self.pipeline.successors(node_id))
+        while queue:
+            curr = queue.popleft()
+            if curr not in descendants:
+                descendants.add(curr)
+                queue.extend(self.pipeline.successors(curr))
+        return descendants
+
     # -- execution -------------------------------------------------------
     def run(self, cancellation: CancellationToken | None = None) -> RunResult:
-        """Execute the pipeline; always cleans up opened resources."""
+        """Execute the pipeline; always cleans up opened resources with failure isolation."""
         self.validate()
         order = self.topological_order()
         node_map = self.pipeline.node_map()
@@ -208,7 +271,11 @@ class Executor:
             plugins[node_id] = lookup(node.type, node.plugin)(node.config)
         opened: list[str] = []
         metrics: dict[str, NodeMetrics] = {nid: NodeMetrics(node_id=nid) for nid in order}
+        self.last_metrics = metrics
         outputs: dict[str, Batch] = {}
+        consumer_counts = {nid: len(self.pipeline.successors(nid)) for nid in order}
+        skipped_nodes: set[str] = set()
+        failed_nodes: dict[str, NodeExecutionError] = {}
         cancelled = False
         try:
             for node_id in order:
@@ -218,6 +285,17 @@ class Executor:
                         ExecutionEvent(type="cancelled", node_id=node_id, message="Run cancelled")
                     )
                     break
+
+                if node_id in skipped_nodes:
+                    self._emit(
+                        ExecutionEvent(
+                            type="node_skipped",
+                            node_id=node_id,
+                            message=f"Node '{node_id}' skipped because an upstream dependency failed",
+                        )
+                    )
+                    continue
+
                 node = node_map[node_id]
                 plugin = plugins[node_id]
                 metric = metrics[node_id]
@@ -235,7 +313,13 @@ class Executor:
                         opened=opened,
                         cancellation=cancellation,
                     )
-                    outputs[node_id] = out
+                    for pred in self.pipeline.predecessors(node_id):
+                        consumer_counts[pred] -= 1
+                        if consumer_counts[pred] <= 0:
+                            outputs.pop(pred, None)
+                    if consumer_counts.get(node_id, 0) > 0:
+                        outputs[node_id] = out
+                    del out
                 except CancellationError:
                     cancelled = True
                     self._emit(
@@ -244,6 +328,7 @@ class Executor:
                     break
                 except NodeExecutionError as exc:
                     metric.duration_seconds = time.monotonic() - started
+                    failed_nodes[node_id] = exc
                     self._emit(
                         ExecutionEvent(
                             type="node_failed",
@@ -252,7 +337,9 @@ class Executor:
                             attempt=metric.attempts,
                         )
                     )
-                    raise
+                    # Downstream dependents are marked skipped, independent branches continue
+                    skipped_nodes.update(self._get_descendants(node_id))
+                    continue
                 metric.duration_seconds = time.monotonic() - started
                 self._emit(
                     ExecutionEvent(
@@ -269,6 +356,12 @@ class Executor:
                     plugins[node_id].close()
         if cancelled:
             raise CancellationError()
+        if failed_nodes:
+            first_fail_node = next(iter(failed_nodes))
+            first_exc = failed_nodes[first_fail_node]
+            first_exc.metrics = metrics
+            self._emit(ExecutionEvent(type="run_failed", node_id=first_fail_node, message=str(first_exc)))
+            raise first_exc
         self._emit(ExecutionEvent(type="run_finished", message="Run completed"))
         return RunResult(metrics=metrics, events=list(self._events), cancelled=False)
 
@@ -378,7 +471,7 @@ class Executor:
                 raise CancellationError()
             metric.records_in += len(batch)
             metric.records_out += len(batch)
-            out.extend(dict(r) for r in batch)
+            out.extend(batch)
             self._emit(
                 ExecutionEvent(
                     type="batch_processed",
@@ -476,21 +569,30 @@ class Executor:
         merged: Batch = []
         for records in inputs.values():
             merged.extend(records)
-        metric.records_in += len(merged)
-        for batch_index, i in enumerate(range(0, len(merged), self.batch_size)):
-            if cancellation is not None and cancellation.is_cancelled:
-                raise CancellationError()
-            chunk = merged[i : i + self.batch_size]
-            written = plugin.write(chunk)
-            metric.records_out += written
-            self._emit(
-                ExecutionEvent(
-                    type="batch_processed",
-                    node_id=node_id,
-                    batch_index=batch_index,
-                    records_in=len(chunk),
-                    records_out=written,
-                    attempt=attempt,
+        metric.records_in = len(merged)
+        written_total = 0
+        try:
+            for batch_index, i in enumerate(range(0, len(merged), self.batch_size)):
+                if cancellation is not None and cancellation.is_cancelled:
+                    raise CancellationError()
+                chunk = merged[i : i + self.batch_size]
+                written = plugin.write(chunk)
+                written_total += written
+                self._emit(
+                    ExecutionEvent(
+                        type="batch_processed",
+                        node_id=node_id,
+                        batch_index=batch_index,
+                        records_in=len(chunk),
+                        records_out=written,
+                        attempt=attempt,
+                    )
                 )
-            )
+            metric.records_out = written_total
+        except Exception:
+            if node_id in opened:
+                with contextlib.suppress(Exception):
+                    plugin.close()
+                opened.remove(node_id)
+            raise
         return []

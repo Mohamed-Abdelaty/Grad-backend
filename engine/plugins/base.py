@@ -113,4 +113,3 @@ class BaseSink(BasePlugin):
         """Lifecycle alias for :meth:`write` (sink ``process`` step)."""
         return self.write(batch)
 
-from .base_compat import Plugin

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,9 @@ from typing import Any
 from engine.errors import PluginConfigError
 from engine.plugins.base import BaseSource, Batch
 from engine.registry import register_source
+
+# Support large text fields (up to 100MB) without crashing
+csv.field_size_limit(min(sys.maxsize, 100 * 1024 * 1024))
 
 
 @register_source("csv")
@@ -50,6 +54,8 @@ class CsvSource(BaseSource):
             raise FileNotFoundError(f"CSV source file not found: {path}")
         delimiter = str(self.config.get("delimiter", ","))
         encoding = str(self.config.get("encoding", "utf-8"))
+        if encoding.lower() in ("utf-8", "utf_8", "utf8"):
+            encoding = "utf-8-sig"  # transparently strip UTF-8 BOM if present
         batch_size = int(self.config.get("batch_size", 500))
         batch: Batch = []
         try:

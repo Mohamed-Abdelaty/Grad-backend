@@ -85,6 +85,12 @@ def catalog() -> list[dict[str, Any]]:
     Each entry: ``{"category", "name", "config_schema"}`` where
     ``config_schema`` comes from the plugin class itself.
     """
+    try:
+        from engine.plugins import discover_plugins
+
+        discover_plugins()
+    except Exception:
+        pass
     entries: list[dict[str, Any]] = []
     for (category, name), cls in sorted(_REGISTRY.items()):
         schema_fn = getattr(cls, "config_schema", None)
@@ -97,6 +103,6 @@ def clear() -> None:  # pragma: no cover
     """Clear the registry (used only in tests that register fakes)."""
     _REGISTRY.clear()
 
-registry = type('R', (), {})()
 
-from .registry_compat import registry, _CompatRegistry  # noqa: F401
+
+from .registry_compat import _CompatRegistry, registry  # noqa: E402, F401
