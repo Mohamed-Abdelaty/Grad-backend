@@ -32,13 +32,19 @@ logger = logging.getLogger("chaosflow")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
-    """Startup: ensure tables exist (dev) and seed admin; shutdown: nothing."""
+    """Startup: ensure tables exist (dev), seed admin, recover orphaned runs; shutdown: cleanup."""
     _ = app
     # Dev convenience: ensure tables exist. Production uses Alembic
     # (`alembic upgrade head`); create_all is idempotent and safe.
     Base.metadata.create_all(bind=db_engine)
     _seed_admin()
+    from app.db.session import SessionLocal
+    from app.services.run_worker import recover_orphaned_runs, shutdown_worker
+
+    with SessionLocal() as db:
+        recover_orphaned_runs(db)
     yield
+    shutdown_worker()
 
 
 def create_app() -> FastAPI:

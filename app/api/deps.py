@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from fastapi import Depends, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -46,6 +47,9 @@ def require_admin(current: User = Depends(get_current_user)) -> User:
     return current
 
 
-def owner_filter(user: User):  # type: ignore[no-untyped-def]
-    """Return a SQLAlchemy filter restricting rows to ``user`` (admins see all)."""
-    return True if user.role == "admin" else None
+def owner_filter(model_or_owner_col: Any, user: User) -> Any:
+    """Return a SQLAlchemy filter clause restricting rows to user (None for admin)."""
+    if user.role == "admin":
+        return None
+    col = getattr(model_or_owner_col, "owner_id", model_or_owner_col)
+    return col == user.id
