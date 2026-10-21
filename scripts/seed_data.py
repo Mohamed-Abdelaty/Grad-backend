@@ -2,12 +2,12 @@
 
 import sqlite3
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 DB_PATH = "chaosflow.db"
 con = sqlite3.connect(DB_PATH)
 cur = con.cursor()
-now = datetime.now(timezone.utc)
+now = datetime.now(UTC)
 
 
 def iso(dt: datetime) -> str:
@@ -19,17 +19,17 @@ def hash_pw(pw: str) -> str:
     return bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
 
 
-admin_id = str(uuid.uuid4())
-user1_id = str(uuid.uuid4())
-user2_id = str(uuid.uuid4())
-pipe1_id = str(uuid.uuid4())
-pipe2_id = str(uuid.uuid4())
-pv1_id = str(uuid.uuid4())
-pv2_v1_id = str(uuid.uuid4())
-pv2_id = str(uuid.uuid4())
-run1_id = str(uuid.uuid4())
-run2_id = str(uuid.uuid4())
-run3_id = str(uuid.uuid4())
+admin_id = uuid.uuid4().hex
+user1_id = uuid.uuid4().hex
+user2_id = uuid.uuid4().hex
+pipe1_id = uuid.uuid4().hex
+pipe2_id = uuid.uuid4().hex
+pv1_id = uuid.uuid4().hex
+pv2_v1_id = uuid.uuid4().hex
+pv2_id = uuid.uuid4().hex
+run1_id = uuid.uuid4().hex
+run2_id = uuid.uuid4().hex
+run3_id = uuid.uuid4().hex
 
 cur.execute("DELETE FROM run_logs")
 cur.execute("DELETE FROM runs")
