@@ -8,21 +8,38 @@ import time
 import uuid
 from typing import Any
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./.test_chaosflow.db")
+# Set test database URL BEFORE any app imports
+os.environ["DATABASE_URL"] = "sqlite:///./.test_chaosflow.db"
 
 import pytest
+from alembic.config import Config
 from fastapi.testclient import TestClient
 
+from alembic import command
 from app.db.session import SessionLocal
 from app.models.entities import (
+    ApiKey,
+    AuditEvent,
+    Notification,
+    NotificationDelivery,
+    NotificationPreference,
     Pipeline,
     PipelineVersion,
     RefreshToken,
     Run,
     RunLog,
+    Schedule,
+    Template,
     User,
 )
 from app.services import run_worker
+
+
+def _run_migrations():
+    """Run alembic migrations on test database."""
+    alembic_cfg = Config("alembic.ini")
+    alembic_cfg.set_main_option("sqlalchemy.url", "sqlite:///./.test_chaosflow.db")
+    command.upgrade(alembic_cfg, "head")
 
 
 def _valid_doc(**overrides: Any) -> dict[str, Any]:
@@ -59,10 +76,13 @@ def _valid_doc(**overrides: Any) -> dict[str, Any]:
 @pytest.fixture(scope="session", autouse=True)
 def _setup_db() -> Any:
     """Create tables once for the isolated test database file."""
-    from app.db.session import Base
-    from app.db.session import engine as test_engine
 
-    Base.metadata.create_all(bind=test_engine)
+    # Remove existing test DB
+    with contextlib.suppress(OSError):
+        os.remove("./.test_chaosflow.db")
+
+    # Run migrations
+    _run_migrations()
     yield
     with contextlib.suppress(OSError):
         os.remove("./.test_chaosflow.db")
@@ -84,7 +104,22 @@ def _clean_db():
     yield
     db = SessionLocal()
     try:
-        for model in (RunLog, Run, PipelineVersion, Pipeline, RefreshToken, User):
+        # Phase 2 tables must be deleted before Phase 1 tables due to FK constraints.
+        for model in (
+            NotificationDelivery,
+            Notification,
+            NotificationPreference,
+            AuditEvent,
+            ApiKey,
+            Template,
+            Schedule,
+            RunLog,
+            Run,
+            PipelineVersion,
+            Pipeline,
+            RefreshToken,
+            User,
+        ):
             db.query(model).delete()
         db.commit()
     finally:

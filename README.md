@@ -13,7 +13,7 @@ plugin-based DAG engine, and monitor live progress over WebSocket.
 - **`app/`** — FastAPI layer: JWT auth, pipeline CRUD with immutable versions, background run
   worker, WebSocket streaming, plugin catalog, health, structured JSON logging.
 - **`alembic/`** — database migrations (`0001_initial`: users, pipelines, pipeline_versions,
-  runs, run_logs, refresh_tokens).
+  runs, run_logs, refresh_tokens; `3c090e908225`: Phase 2 tables).
 - **`engine/schema/pipeline.schema.json`** — JSON Schema generated from the Pydantic models.
 - **`examples/`** — sample pipeline + CSV data. **`tests/`** — 158 engine + API tests.
 
@@ -41,7 +41,7 @@ Requires Python 3.11+ and (for production) PostgreSQL. Local dev works with SQLi
 
 ```powershell
 # 1. Install (Windows PowerShell; use python3 on Linux/macOS)
-C:\Users\acer\AppData\Local\Programs\Python\Python313\python.exe -m pip install fastapi "uvicorn[standard]" sqlalchemy alembic pydantic pydantic-settings pyjwt bcrypt httpx "psycopg[binary]" python-multipart websockets pytest pytest-asyncio coverage ruff mypy
+C:\Users\acer\AppData\Local\Programs\Python\Python313\python.exe -m pip install fastapi "uvicorn[standard]" sqlalchemy alembic pydantic pydantic-settings pyjwt bcrypt httpx "psycopg[binary]" python-multipart websockets pytest pytest-asyncio coverage ruff mypy apscheduler cryptography croniter python-dateutil
 # or: pip install -e ".[dev]"
 
 # 2. Configure
@@ -61,6 +61,8 @@ Environment variables (see `.env.example`): `DATABASE_URL`, `JWT_SECRET_KEY`, `J
 `ACCESS_TOKEN_EXPIRE_MINUTES` (30), `REFRESH_TOKEN_EXPIRE_DAYS` (7), `CORS_ORIGINS`,
 `APP_VERSION`, `LOG_LEVEL`, `ENGINE_BATCH_SIZE` (500), `ENGINE_MAX_BACKOFF_SECONDS` (60),
 `RUN_WORKER_THREADS` (4), `ADMIN_EMAIL`/`ADMIN_PASSWORD` (seed first admin).
+
+**Phase 2 env vars (new):** `SCHEDULER_ENABLED`, `SCHEDULER_MAX_INSTANCES`, `SCHEDULER_MISFIRE_GRACE_TIME`, `SCHEDULER_ADVISORY_LOCK_ID`, `API_KEY_DEFAULT_EXPIRY_DAYS`, `AUDIT_LOG_RETENTION_DAYS`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_TLS`, `SMTP_TIMEOUT`, `WEBHOOK_MAX_RETRIES`, `WEBHOOK_TIMEOUT`, `WEBHOOK_BACKOFF_BASE`, `WEBHOOK_ALLOW_PRIVATE_IPS`, `FERNET_KEY`, `SSRF_ALLOW_PRIVATE_IPS`.
 
 ## CLI (same engine as the API)
 
@@ -86,7 +88,34 @@ python scripts/generate_schema.py
 | GET | `/plugins` | Live registry catalog with per-plugin config JSON Schema |
 | GET | `/health` | Liveness + DB reachability |
 
-Errors: `{"error": {"code", "message", "details"}}`. Auth: `Authorization: Bearer <access>`.
+### Phase 2 Endpoints (new)
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET/POST/PUT/DELETE | `/pipelines/{id}/schedule` | CRUD for pipeline schedules (cron, timezone, misfire policy) |
+| GET | `/schedules/preview?cron=&timezone=` | Preview next 5 fire times (DST-correct) |
+| GET | `/templates` | List templates (search, filter by category, scope) |
+| GET | `/templates/{id}` | Get template details |
+| POST | `/templates/{id}/use` | Clone template into new pipeline (increments usage_count) |
+| POST | `/pipelines/{id}/save-as-template` | Save pipeline as private template |
+| POST | `/templates/{id}/publish` | Publish template (admin only) |
+| GET | `/notifications` | List notifications (paginated, unread filter) |
+| GET | `/notifications/unread-count` | Get unread count |
+| PATCH | `/notifications/{id}/read` | Mark notification read/unread |
+| PATCH | `/notifications/read-all` | Mark all notifications read |
+| WS | `/ws/notifications?token=<JWT>` | Real-time notification stream (per-user) |
+| GET/PUT | `/me/notification-preferences` | Get/update per-event/channel preferences |
+| PUT | `/me/notification-preferences/webhook` | Update webhook URL + secret |
+| PUT | `/me/notification-preferences/email` | Update email address |
+| GET | `/notifications/deliveries` | List delivery logs (email/webhook) |
+| GET/POST | `/api-keys` | List/create API keys (raw key shown once) |
+| DELETE | `/api-keys/{id}` | Revoke API key |
+| GET | `/admin/audit-log` | List audit events (filters, pagination, CSV export) |
+| PUT | `/admin/users/{id}/role` | Change user role (audited) |
+| GET | `/pipelines/{id}/versions/diff?from=&to=` | Diff two pipeline versions |
+| POST | `/pipelines/{id}/rollback/{version}` | Rollback to version (creates N+1) |
+
+Errors: `{"error": {"code", "message", "details"}}`. Auth: `Authorization: Bearer <access>` OR `X-API-Key: cf_<prefix>_<secret>`.
 Progress over WS is a **graph-progress estimate** (`finished_nodes/total_nodes`, labelled in the
 message) plus live record counters — not record-level completion.
 
@@ -114,6 +143,47 @@ accepted for dev/tests). Transforms: `filter` (safe grammar: comparisons incl. `
 (`backoff_seconds * 2^(n-1)`, capped). Events: `node_started`, `batch_processed`,
 `node_finished`, `node_failed`, plus `retry_attempt`, `cancelled`, `run_finished`.
 
+## Phase 2 Features Detail
+
+### Scheduling
+- Cron-based schedules with IANA timezone support (DST-correct).
+- Misfire policies: `skip` (record missed + notify) or `run_once` (start exactly one run per missed window).
+- Overlap prevention: if pipeline has pending/running run, scheduled fire is skipped (race-safe via advisory lock).
+- Reconciliation on startup: adds missing jobs, removes stale, updates changed.
+- PostgreSQL advisory lock ensures only one scheduler instance fires jobs (documented limitation).
+- Scheduled runs use same run-start service as manual runs (`trigger=scheduled`).
+
+### Templates
+- System-seeded templates (6): CSV→PostgreSQL cleanup, API→JSON snapshot, deduplicate+aggregate, JSON→CSV, filter+rename→console, PostgreSQL→CSV export.
+- All seeded configs validated against Phase 1 pipeline validator.
+- Users can save own pipelines as private templates; only admins can publish (make public).
+- `POST /templates/{id}/use` clones template into new pipeline (fresh ID, version 1), increments `usage_count` atomically.
+
+### Notifications
+- Event bus: `run_succeeded`, `run_failed`, `schedule_missed` emitted by worker/scheduler.
+- In-app: created per enabled preference; paginated list, unread count, mark read/all read.
+- Real-time: `/ws/notifications` WebSocket (per-user channel, cleanup on disconnect).
+- Email: SMTP via env vars (host, port, user, pass, from, TLS).
+- Webhook: POST JSON with `X-ChaosFlow-Timestamp` and `X-ChaosFlow-Signature` (HMAC-SHA256). Retries with exponential backoff. SSRF protection (blocks private/loopback/link-local IPs unless `SSRF_ALLOW_PRIVATE_IPS=true`).
+- Webhook secret encrypted at rest (Fernet, key from `FERNET_KEY`), never returned after creation, never logged.
+- Delivery log table tracks channel, target, status, attempts, last_error.
+
+### API Keys
+- Format: `cf_<8-char prefix>_<32+ byte URL-safe secret>`.
+- Store ONLY SHA256 hash + prefix. Raw key returned **once** in POST response, never again, never logged.
+- Scopes: `read` (GET), `run` (start/stop runs), `write` (pipeline/template/schedule CRUD).
+- Expiry, revocation, `last_used_at` tracking. Constant-time hash compare.
+- API keys CANNOT call `/api-keys` (POST/DELETE) or `/admin/*`. Ownership isolation applies.
+
+### Audit Log
+- Actions: `auth.login_success/failed`, `pipeline.create/update/delete/rollback`, `run.start/stop`, `apikey.create/revoke`, `user.role_change`, `schedule.create/update/delete`, `template.publish`.
+- Append-only: no update/delete endpoints, no update/delete methods in repository, Postgres trigger rejects UPDATE/DELETE.
+- Admin-only; filters: actor, action, target_type, target_id, date range; pagination; CSV export with formula injection protection.
+
+### Diff & Rollback
+- Diff: compares nodes by ID (added/removed/changed with field-level paths), edges by (from,to).
+- Rollback: creates new version (N+1) copied from target version, never modifies history, revalidates against current plugin schemas.
+
 ## Limitations & follow-ups
 
 - Runs execute in-process (thread pool): prompt start, no cross-restart durability; Postgres
@@ -122,3 +192,6 @@ accepted for dev/tests). Transforms: `filter` (safe grammar: comparisons incl. `
 - Exactly-once is **not** claimed: append sinks are at-least-once under retry; use upsert + conflict keys for idempotency.
 - Single-node semantics only; no Kafka/Spark/HDFS/ChaosLab/AI (full-stack scope per project guide).
 - Filter numeric coercion (`"150" > 100`) is a documented convenience for CSV/JSON string data.
+- Scheduler: only one instance may fire jobs (Postgres advisory lock). Multi-instance deployments need external coordination.
+- Email/webhook delivery is best-effort; failures logged in delivery log only, never fail the pipeline run.
+- Webhook secrets and raw API keys are never logged or returned after creation (enforced by log redaction + tests).

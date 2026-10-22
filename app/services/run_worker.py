@@ -212,6 +212,12 @@ def _execute_run(run_id: str, token: CancellationToken) -> None:
             run.finished_at = datetime.now(UTC)
             db.commit()
             _broadcast(run_id, {"type": "done", "run_id": run_id, "status": "failed"})
+            try:
+                from app.services.notification import emit_run_failed
+                pipe_name = run.pipeline.name if run.pipeline else "Pipeline"
+                emit_run_failed(db, pipe_name, run.id, run.error, run.owner_id)
+            except Exception as notify_err:
+                logger.warning("Failed to emit run_failed notification: %s", notify_err)
             return
 
         doc = PipelineDocument.model_validate(current_ver.config)
@@ -316,6 +322,12 @@ def _execute_run(run_id: str, token: CancellationToken) -> None:
             _save_metrics(result.metrics)
             db.commit()
             _broadcast(run_id, {"type": "done", "run_id": run_id, "status": "succeeded"})
+            try:
+                from app.services.notification import emit_run_succeeded
+                pipe_name = run.pipeline.name if run.pipeline else "Pipeline"
+                emit_run_succeeded(db, pipe_name, run.id, run.owner_id)
+            except Exception as notify_err:
+                logger.warning("Failed to emit run_succeeded notification: %s", notify_err)
 
         except CancellationError:
             run.status = "cancelled"
@@ -333,6 +345,12 @@ def _execute_run(run_id: str, token: CancellationToken) -> None:
             _save_metrics(getattr(exc, "metrics", executor.last_metrics))
             db.commit()
             _broadcast(run_id, {"type": "done", "run_id": run_id, "status": "failed"})
+            try:
+                from app.services.notification import emit_run_failed
+                pipe_name = run.pipeline.name if run.pipeline else "Pipeline"
+                emit_run_failed(db, pipe_name, run.id, run.error or "Run failed", run.owner_id)
+            except Exception as notify_err:
+                logger.warning("Failed to emit run_failed notification: %s", notify_err)
 
         except Exception as exc:
             run.status = "failed"
@@ -342,6 +360,12 @@ def _execute_run(run_id: str, token: CancellationToken) -> None:
             _save_metrics(getattr(executor, "last_metrics", {}))
             db.commit()
             _broadcast(run_id, {"type": "done", "run_id": run_id, "status": "failed"})
+            try:
+                from app.services.notification import emit_run_failed
+                pipe_name = run.pipeline.name if run.pipeline else "Pipeline"
+                emit_run_failed(db, pipe_name, run.id, run.error or "Run failed", run.owner_id)
+            except Exception as notify_err:
+                logger.warning("Failed to emit run_failed notification: %s", notify_err)
 
     except Exception as exc:
         logger.error("Fatal error executing run %s: %s", run_id, exc)

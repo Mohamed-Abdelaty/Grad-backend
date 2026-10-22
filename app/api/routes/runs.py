@@ -4,16 +4,18 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import require_scope
 from app.core.errors import ApiError
 from app.db.session import get_db
 from app.models.entities import TERMINAL_STATUSES, Pipeline, PipelineVersion, Run, RunLog, User
 from app.schemas.common import Page
 from app.schemas.run import RunLogResponse, RunResponse
 from app.services import run_worker
+from app.services.apikey import Principal
+from app.services.audit import AuditAction, AuditService
 
 router = APIRouter(tags=["runs"])
 
@@ -48,9 +50,13 @@ def _check_run_access(run: Run, user: User) -> None:
     status_code=status.HTTP_202_ACCEPTED,
 )
 def start_run(
-    pipeline_id: uuid.UUID, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+    pipeline_id: uuid.UUID,
+    request: Request,
+    principal: Principal = Depends(require_scope("run")),
+    db: Session = Depends(get_db),
 ) -> RunResponse:
     """Start a run of the pipeline's current version (returns promptly)."""
+    user = principal.user
     pipeline = db.get(Pipeline, pipeline_id)
     if pipeline is None:
         raise ApiError(status.HTTP_404_NOT_FOUND, "not_found", "Pipeline not found")
@@ -77,19 +83,35 @@ def start_run(
         version=version.version,
         status="queued",
         progress=0.0,
+        trigger="manual",
     )
     db.add(run)
     db.commit()
     db.refresh(run)
     run_worker.submit_run(str(run.id))  # background thread; HTTP returns now
+
+    AuditService.record(
+        db,
+        actor=user.email,
+        action=AuditAction.RUN_START,
+        target_type="run",
+        target_id=run.id,
+        ip=request.client.host if request.client else None,
+        metadata={"pipeline_id": str(pipeline.id), "trigger": "manual"},
+    )
+
     return _to_response(run)
 
 
 @router.post("/runs/{run_id}/stop", response_model=RunResponse)
 def stop_run(
-    run_id: uuid.UUID, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+    run_id: uuid.UUID,
+    request: Request,
+    principal: Principal = Depends(require_scope("run")),
+    db: Session = Depends(get_db),
 ) -> RunResponse:
     """Request cancellation; duplicate stops and terminal runs return 409."""
+    user = principal.user
     run = db.get(Run, run_id)
     if run is None:
         raise ApiError(status.HTTP_404_NOT_FOUND, "not_found", "Run not found")
@@ -110,6 +132,17 @@ def stop_run(
                 f"Run is already {run.status}; stop is a no-op",
             )
     db.refresh(run)
+
+    AuditService.record(
+        db,
+        actor=user.email,
+        action=AuditAction.RUN_STOP,
+        target_type="run",
+        target_id=run.id,
+        ip=request.client.host if request.client else None,
+        metadata={"pipeline_id": str(run.pipeline_id)},
+    )
+
     return _to_response(run)
 
 
@@ -119,10 +152,11 @@ def list_runs(
     run_status: str | None = Query(default=None, alias="status"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    user: User = Depends(get_current_user),
+    principal: Principal = Depends(require_scope("read")),
     db: Session = Depends(get_db),
 ) -> Page[RunResponse]:
     """Run history (paginated; ownership-isolated, admins see all)."""
+    user = principal.user
     query = db.query(Run)
     if user.role != "admin":
         query = query.filter(Run.owner_id == user.id)
@@ -141,9 +175,12 @@ def list_runs(
 
 @router.get("/runs/{run_id}", response_model=RunResponse)
 def get_run(
-    run_id: uuid.UUID, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+    run_id: uuid.UUID,
+    principal: Principal = Depends(require_scope("read")),
+    db: Session = Depends(get_db),
 ) -> RunResponse:
     """Run details: status, progress, counters, error, and per-node metrics."""
+    user = principal.user
     run = db.get(Run, run_id)
     if run is None:
         raise ApiError(status.HTTP_404_NOT_FOUND, "not_found", "Run not found")
@@ -156,10 +193,11 @@ def get_run_logs(
     run_id: uuid.UUID,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
-    user: User = Depends(get_current_user),
+    principal: Principal = Depends(require_scope("read")),
     db: Session = Depends(get_db),
 ) -> Page[RunLogResponse]:
     """Persisted run logs (available after WebSocket disconnects)."""
+    user = principal.user
     run = db.get(Run, run_id)
     if run is None:
         raise ApiError(status.HTTP_404_NOT_FOUND, "not_found", "Run not found")

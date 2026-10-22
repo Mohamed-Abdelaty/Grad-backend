@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.orm import Session
 
 from app.core.errors import ApiError
@@ -25,6 +25,7 @@ from app.schemas.auth import (
     TokenResponse,
     UserResponse,
 )
+from app.services.audit import AuditAction, AuditService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -65,16 +66,37 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> User:
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
+def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)) -> TokenResponse:
     """Authenticate with email + password and receive a token pair."""
     email = payload.email.strip().lower()
+    client_ip = request.client.host if request.client else None
     user = db.query(User).filter(User.email == email).first()
     if user is None or not verify_password(payload.password, user.password_hash):
+        AuditService.record(
+            db,
+            actor=email,
+            action=AuditAction.AUTH_LOGIN_FAILED,
+            ip=client_ip,
+            metadata={"reason": "invalid_credentials"},
+        )
         raise ApiError(
             status.HTTP_401_UNAUTHORIZED, "invalid_credentials", "Invalid email or password"
         )
     if not user.is_active:
+        AuditService.record(
+            db,
+            actor=email,
+            action=AuditAction.AUTH_LOGIN_FAILED,
+            ip=client_ip,
+            metadata={"reason": "inactive"},
+        )
         raise ApiError(status.HTTP_403_FORBIDDEN, "inactive", "User account is inactive")
+    AuditService.record(
+        db,
+        actor=user.email,
+        action=AuditAction.AUTH_LOGIN_SUCCESS,
+        ip=client_ip,
+    )
     return _issue_pair(user, db)
 
 

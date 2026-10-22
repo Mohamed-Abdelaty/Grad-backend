@@ -17,7 +17,20 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import auth, pipelines, runs, system, websocket
+from app.api.routes import (
+    apikeys,
+    audit,
+    auth,
+    diff,
+    notifications,
+    notifications_ws,
+    pipelines,
+    runs,
+    schedules,
+    system,
+    templates,
+    websocket,
+)
 from app.core.config import settings
 from app.core.errors import register_exception_handlers
 from app.core.logging_config import configure_logging, new_request_id
@@ -40,11 +53,30 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
     _seed_admin()
     from app.db.session import SessionLocal
     from app.services.run_worker import recover_orphaned_runs, shutdown_worker
+    from app.services.scheduler import (
+        handle_misfires_on_startup,
+        init_scheduler,
+        shutdown_scheduler,
+    )
 
     with SessionLocal() as db:
         recover_orphaned_runs(db)
+        # Seed system templates
+        from app.services.template import seed_templates
+        seed_templates(db)
+
+    # Initialize scheduler
+    init_scheduler()
+    # Handle misfires on startup
+    handle_misfires_on_startup()
+
     yield
+
+    from app.services.notification import shutdown_notifications
+
+    shutdown_notifications()
     shutdown_worker()
+    shutdown_scheduler()
 
 
 def create_app() -> FastAPI:
@@ -81,7 +113,7 @@ def create_app() -> FastAPI:
         )
         return response
 
-    for route_module in (auth.router, pipelines.router, runs.router, system.router):
+    for route_module in (auth.router, pipelines.router, runs.router, system.router, apikeys.router, audit.router, schedules.router, notifications.router, notifications_ws.router, templates.router, diff.router):
         app.include_router(route_module)
         app.include_router(route_module, prefix="/api")
     app.include_router(websocket.router)

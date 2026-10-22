@@ -1,0 +1,2070 @@
+{
+  "info": {
+    "name": "ChaosFlow API Collection",
+    "_postman_id": "chaosflow-api-collection-v2",
+    "description": "Comprehensive Postman collection for ChaosFlow data-pipeline platform API (Phase 1 + Phase 2).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Auth",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Authenticate with email + password and receive a token pair.",
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ],
+              "variable": [],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user_a@example.com\",\n  \"password\": \"Password123!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Rotate a refresh token: the presented token is revoked, a new pair issued.",
+            "url": {
+              "raw": "{{base_url}}/auth/refresh",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "refresh"
+              ],
+              "variable": [],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMTExMTExMS0xMTExLTQxMTEtODExMS0xMTExMTExMTExMTEiLCJqdGkiOiIyMjIyMjIyMi0yMjIyLTQyMjItODIyMi0yMjIyMjIyMjIyMjIiLCJleHAiOjE4MDAwMDAwMDAsInR5cGUiOiJyZWZyZXNoIn0.signature\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Register a new ``user`` account (public signup never grants admin).",
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ],
+              "variable": [],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user_a@example.com\",\n  \"password\": \"Password123!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Pipelines",
+      "item": [
+        {
+          "name": "List Pipelines",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              }
+            ],
+            "description": "List pipelines (paginated; users see only their own, admins see all).",
+            "url": {
+              "raw": "{{base_url}}/pipelines?page=1&page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "pipelines"
+              ],
+              "variable": [],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": ""
+                },
+                {
+                  "key": "page_size",
+                  "value": "20",
+                  "description": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Pipeline",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Validate the configuration and create a pipeline at version 1.",
+            "url": {
+              "raw": "{{base_url}}/pipelines",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "pipelines"
+              ],
+              "variable": [],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"config\": {\n    \"pipeline\": {\n      \"edges\": [\n        {\n          \"from\": \"src_1\",\n          \"to\": \"tr_1\"\n        },\n        {\n          \"from\": \"tr_1\",\n          \"to\": \"snk_1\"\n        }\n      ],\n      \"id\": \"11111111-1111-4111-8111-111111111111\",\n      \"name\": \"orders-pipeline\",\n      \"nodes\": [\n        {\n          \"config\": {\n            \"delimiter\": \",\",\n            \"path\": \"samples/data/orders.csv\"\n          },\n          \"id\": \"src_1\",\n          \"plugin\": \"csv\",\n          \"type\": \"source\"\n        },\n        {\n          \"config\": {\n            \"expression\": \"amount > 100\"\n          },\n          \"id\": \"tr_1\",\n          \"plugin\": \"filter\",\n          \"type\": \"transform\"\n        },\n        {\n          \"config\": {\n            \"mode\": \"overwrite\",\n            \"path\": \"outputs/orders_clean.csv\"\n          },\n          \"id\": \"snk_1\",\n          \"plugin\": \"csv\",\n          \"type\": \"sink\"\n        }\n      ],\n      \"retry\": {\n        \"backoff_seconds\": 5,\n        \"max_attempts\": 3\n      },\n      \"version\": 1\n    }\n  },\n  \"name\": \"orders-pipeline\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Pipeline",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              }
+            ],
+            "description": "Read a pipeline with its current configuration.",
+            "url": {
+              "raw": "{{base_url}}/pipelines/{pipeline_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "pipelines",
+                ":pipeline_id"
+              ],
+              "variable": [
+                {
+                  "key": "pipeline_id",
+                  "value": "{{pipeline_id}}",
+                  "description": "URL param pipeline_id"
+                }
+              ],
+              "query": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Pipeline",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Update name/config; config changes create a new immutable version.",
+            "url": {
+              "raw": "{{base_url}}/pipelines/{pipeline_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "pipelines",
+                ":pipeline_id"
+              ],
+              "variable": [
+                {
+                  "key": "pipeline_id",
+                  "value": "{{pipeline_id}}",
+                  "description": "URL param pipeline_id"
+                }
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"config\": {\n    \"pipeline\": {\n      \"edges\": [\n        {\n          \"from\": \"src_1\",\n          \"to\": \"tr_1\"\n        },\n        {\n          \"from\": \"tr_1\",\n          \"to\": \"snk_1\"\n        }\n      ],\n      \"id\": \"11111111-1111-4111-8111-111111111111\",\n      \"name\": \"orders-pipeline-v2\",\n      \"nodes\": [\n        {\n          \"config\": {\n            \"delimiter\": \",\",\n            \"path\": \"samples/data/orders.csv\"\n          },\n          \"id\": \"src_1\",\n          \"plugin\": \"csv\",\n          \"type\": \"source\"\n        },\n        {\n          \"config\": {\n            \"expression\": \"amount > 200\"\n          },\n          \"id\": \"tr_1\",\n          \"plugin\": \"filter\",\n          \"type\": \"transform\"\n        },\n        {\n          \"config\": {\n            \"mode\": \"overwrite\",\n            \"path\": \"outputs/orders_clean.csv\"\n          },\n          \"id\": \"snk_1\",\n          \"plugin\": \"csv\",\n          \"type\": \"sink\"\n        }\n      ],\n      \"retry\": {\n        \"backoff_seconds\": 5,\n        \"max_attempts\": 3\n      },\n      \"version\": 2\n    }\n  },\n  \"name\": \"orders-pipeline-v2\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Pipeline",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              }
+            ],
+            "description": "Delete a pipeline and its versions, runs, and logs.",
+            "url": {
+              "raw": "{{base_url}}/pipelines/{pipeline_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "pipelines",
+                ":pipeline_id"
+              ],
+              "variable": [
+                {
+                  "key": "pipeline_id",
+                  "value": "{{pipeline_id}}",
+                  "description": "URL param pipeline_id"
+                }
+              ],
+              "query": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Start Run",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              }
+            ],
+            "description": "Start a run of the pipeline's current version (returns promptly).",
+            "url": {
+              "raw": "{{base_url}}/pipelines/{pipeline_id}/runs",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "pipelines",
+                ":pipeline_id",
+                "runs"
+              ],
+              "variable": [
+                {
+                  "key": "pipeline_id",
+                  "value": "{{pipeline_id}}",
+                  "description": "URL param pipeline_id"
+                }
+              ],
+              "query": []
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Versions & Diff",
+      "item": [
+        {
+          "name": "Rollback Pipeline",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              }
+            ],
+            "description": "Rollback to a previous version by creating a new version (N+1).",
+            "url": {
+              "raw": "{{base_url}}/pipelines/{pipeline_id}/rollback/{target_version}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "pipelines",
+                ":pipeline_id",
+                "rollback",
+                ":target_version"
+              ],
+              "variable": [
+                {
+                  "key": "pipeline_id",
+                  "value": "{{pipeline_id}}",
+                  "description": "URL param pipeline_id"
+                },
+                {
+                  "key": "target_version",
+                  "value": "{{target_version}}",
+                  "description": "URL param target_version"
+                }
+              ],
+              "query": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Versions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              }
+            ],
+            "description": "List preserved configuration versions (history is never overwritten).",
+            "url": {
+              "raw": "{{base_url}}/pipelines/{pipeline_id}/versions?page=1&page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "pipelines",
+                ":pipeline_id",
+                "versions"
+              ],
+              "variable": [
+                {
+                  "key": "pipeline_id",
+                  "value": "{{pipeline_id}}",
+                  "description": "URL param pipeline_id"
+                }
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": ""
+                },
+                {
+                  "key": "page_size",
+                  "value": "20",
+                  "description": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Diff Versions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              }
+            ],
+            "description": "Compare two pipeline versions (nodes and edges).",
+            "url": {
+              "raw": "{{base_url}}/pipelines/{pipeline_id}/versions/diff?from=&to=",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "pipelines",
+                ":pipeline_id",
+                "versions",
+                "diff"
+              ],
+              "variable": [
+                {
+                  "key": "pipeline_id",
+                  "value": "{{pipeline_id}}",
+                  "description": "URL param pipeline_id"
+                }
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "",
+                  "description": ""
+                },
+                {
+                  "key": "to",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. Runs",
+      "item": [
+        {
+          "name": "List Runs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              }
+            ],
+            "description": "Run history (paginated; ownership-isolated, admins see all).",
+            "url": {
+              "raw": "{{base_url}}/runs?pipeline_id=&status=&page=1&page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "runs"
+              ],
+              "variable": [],
+              "query": [
+                {
+                  "key": "pipeline_id",
+                  "value": "",
+                  "description": ""
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "description": ""
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": ""
+                },
+                {
+                  "key": "page_size",
+                  "value": "20",
+                  "description": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Run",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              }
+            ],
+            "description": "Run details: status, progress, counters, error, and per-node metrics.",
+            "url": {
+              "raw": "{{base_url}}/runs/{run_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "runs",
+                ":run_id"
+              ],
+              "variable": [
+                {
+                  "key": "run_id",
+                  "value": "{{run_id}}",
+                  "description": "URL param run_id"
+                }
+              ],
+              "query": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Run Logs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              }
+            ],
+            "description": "Persisted run logs (available after WebSocket disconnects).",
+            "url": {
+              "raw": "{{base_url}}/runs/{run_id}/logs?page=1&page_size=50",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "runs",
+                ":run_id",
+                "logs"
+              ],
+              "variable": [
+                {
+                  "key": "run_id",
+                  "value": "{{run_id}}",
+                  "description": "URL param run_id"
+                }
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": ""
+                },
+                {
+                  "key": "page_size",
+                  "value": "50",
+                  "description": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Stop Run",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              }
+            ],
+            "description": "Request cancellation; duplicate stops and terminal runs return 409.",
+            "url": {
+              "raw": "{{base_url}}/runs/{run_id}/stop",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "runs",
+                ":run_id",
+                "stop"
+              ],
+              "variable": [
+                {
+                  "key": "run_id",
+                  "value": "{{run_id}}",
+                  "description": "URL param run_id"
+                }
+              ],
+              "query": []
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "5. Plugins",
+      "item": [
+        {
+          "name": "List Plugins",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "List registered plugins with their config JSON Schemas (from the live registry).",
+            "url": {
+              "raw": "{{base_url}}/plugins?category=",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "plugins"
+              ],
+              "variable": [],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "6. Schedules",
+      "item": [
+        {
+          "name": "Preview Schedule Execution Times",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Calculate and preview the next N trigger times for a cron expression and timezone without persisting.",
+            "url": {
+              "raw": "{{base_url}}/pipelines/schedules/preview?cron=0 * * * *&timezone=UTC&count=5",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "pipelines",
+                "schedules",
+                "preview"
+              ],
+              "variable": [],
+              "query": [
+                {
+                  "key": "cron",
+                  "value": "0 * * * *",
+                  "description": "5-field cron expression, e.g. '0 * * * *'"
+                },
+                {
+                  "key": "timezone",
+                  "value": "UTC",
+                  "description": "IANA timezone, e.g. 'UTC' or 'Africa/Cairo'"
+                },
+                {
+                  "key": "count",
+                  "value": "5",
+                  "description": "Number of fire times to compute (1-20)"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Schedule",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              }
+            ],
+            "description": "Get the schedule for a pipeline.",
+            "url": {
+              "raw": "{{base_url}}/pipelines/{pipeline_id}/schedule",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "pipelines",
+                ":pipeline_id",
+                "schedule"
+              ],
+              "variable": [
+                {
+                  "key": "pipeline_id",
+                  "value": "{{pipeline_id}}",
+                  "description": "URL param pipeline_id"
+                }
+              ],
+              "query": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Schedule",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Create a schedule for a pipeline.",
+            "url": {
+              "raw": "{{base_url}}/pipelines/{pipeline_id}/schedule",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "pipelines",
+                ":pipeline_id",
+                "schedule"
+              ],
+              "variable": [
+                {
+                  "key": "pipeline_id",
+                  "value": "{{pipeline_id}}",
+                  "description": "URL param pipeline_id"
+                }
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cron\": \"0 * * * *\",\n  \"enabled\": true,\n  \"misfire_policy\": \"skip\",\n  \"timezone\": \"UTC\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Schedule",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Update a pipeline's schedule.",
+            "url": {
+              "raw": "{{base_url}}/pipelines/{pipeline_id}/schedule",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "pipelines",
+                ":pipeline_id",
+                "schedule"
+              ],
+              "variable": [
+                {
+                  "key": "pipeline_id",
+                  "value": "{{pipeline_id}}",
+                  "description": "URL param pipeline_id"
+                }
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cron\": \"*/30 * * * *\",\n  \"enabled\": true,\n  \"misfire_policy\": \"run_once\",\n  \"timezone\": \"Europe/London\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Schedule",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              }
+            ],
+            "description": "Delete a pipeline's schedule.",
+            "url": {
+              "raw": "{{base_url}}/pipelines/{pipeline_id}/schedule",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "pipelines",
+                ":pipeline_id",
+                "schedule"
+              ],
+              "variable": [
+                {
+                  "key": "pipeline_id",
+                  "value": "{{pipeline_id}}",
+                  "description": "URL param pipeline_id"
+                }
+              ],
+              "query": []
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "7. Templates",
+      "item": [
+        {
+          "name": "List Templates",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              }
+            ],
+            "description": "List templates (public + own private; filtered by category, search).",
+            "url": {
+              "raw": "{{base_url}}/templates?q=&category=&scope=&page=1&page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "templates"
+              ],
+              "variable": [],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "",
+                  "description": "Search in name and description"
+                },
+                {
+                  "key": "category",
+                  "value": "",
+                  "description": "Filter by category (ETL|Analytics|Sync)"
+                },
+                {
+                  "key": "scope",
+                  "value": "",
+                  "description": "Scope filter: mine|public"
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": ""
+                },
+                {
+                  "key": "page_size",
+                  "value": "20",
+                  "description": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Create a private template from a pipeline config.",
+            "url": {
+              "raw": "{{base_url}}/templates",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "templates"
+              ],
+              "variable": [],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category\": \"ETL\",\n  \"config\": {\n    \"pipeline\": {\n      \"edges\": [\n        {\n          \"from\": \"src_1\",\n          \"to\": \"tr_1\"\n        },\n        {\n          \"from\": \"tr_1\",\n          \"to\": \"snk_1\"\n        }\n      ],\n      \"name\": \"Custom ETL\",\n      \"nodes\": [\n        {\n          \"config\": {\n            \"path\": \"samples/data/orders.csv\"\n          },\n          \"id\": \"src_1\",\n          \"plugin\": \"csv\",\n          \"type\": \"source\"\n        },\n        {\n          \"config\": {\n            \"expression\": \"amount > 50\"\n          },\n          \"id\": \"tr_1\",\n          \"plugin\": \"filter\",\n          \"type\": \"transform\"\n        },\n        {\n          \"config\": {\n            \"path\": \"outputs/clean.csv\"\n          },\n          \"id\": \"snk_1\",\n          \"plugin\": \"csv\",\n          \"type\": \"sink\"\n        }\n      ]\n    }\n  },\n  \"description\": \"Custom CSV filter and extract template\",\n  \"name\": \"My Custom ETL\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Save Pipeline As Template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              }
+            ],
+            "description": "Save an existing pipeline as a private template.",
+            "url": {
+              "raw": "{{base_url}}/templates/pipelines/{pipeline_id}/save-as-template?name=&category=&description=",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "templates",
+                "pipelines",
+                ":pipeline_id",
+                "save-as-template"
+              ],
+              "variable": [
+                {
+                  "key": "pipeline_id",
+                  "value": "{{pipeline_id}}",
+                  "description": "URL param pipeline_id"
+                }
+              ],
+              "query": [
+                {
+                  "key": "name",
+                  "value": "",
+                  "description": ""
+                },
+                {
+                  "key": "category",
+                  "value": "",
+                  "description": ""
+                },
+                {
+                  "key": "description",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Template",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              }
+            ],
+            "description": "Get a template by ID (if visible to user).",
+            "url": {
+              "raw": "{{base_url}}/templates/{template_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "templates",
+                ":template_id"
+              ],
+              "variable": [
+                {
+                  "key": "template_id",
+                  "value": "{{template_id}}",
+                  "description": "URL param template_id"
+                }
+              ],
+              "query": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Template",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Update a template (only owner can update private templates).",
+            "url": {
+              "raw": "{{base_url}}/templates/{template_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "templates",
+                ":template_id"
+              ],
+              "variable": [
+                {
+                  "key": "template_id",
+                  "value": "{{template_id}}",
+                  "description": "URL param template_id"
+                }
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category\": \"Analytics\",\n  \"description\": \"Updated template description\",\n  \"name\": \"My Custom ETL v2\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Template",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              }
+            ],
+            "description": "Delete a template (only owner can delete private templates).",
+            "url": {
+              "raw": "{{base_url}}/templates/{template_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "templates",
+                ":template_id"
+              ],
+              "variable": [
+                {
+                  "key": "template_id",
+                  "value": "{{template_id}}",
+                  "description": "URL param template_id"
+                }
+              ],
+              "query": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Publish Template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              }
+            ],
+            "description": "Publish a template (make it public) - admin only.",
+            "url": {
+              "raw": "{{base_url}}/templates/{template_id}/publish",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "templates",
+                ":template_id",
+                "publish"
+              ],
+              "variable": [
+                {
+                  "key": "template_id",
+                  "value": "{{template_id}}",
+                  "description": "URL param template_id"
+                }
+              ],
+              "query": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Use Template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              }
+            ],
+            "description": "Clone a template into a new pipeline owned by the caller.",
+            "url": {
+              "raw": "{{base_url}}/templates/{template_id}/use",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "templates",
+                ":template_id",
+                "use"
+              ],
+              "variable": [
+                {
+                  "key": "template_id",
+                  "value": "{{template_id}}",
+                  "description": "URL param template_id"
+                }
+              ],
+              "query": []
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "8. Notifications",
+      "item": [
+        {
+          "name": "List Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              }
+            ],
+            "description": "List notifications for the current user (paginated).",
+            "url": {
+              "raw": "{{base_url}}/notifications?page=1&page_size=20&unread_only=False",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications"
+              ],
+              "variable": [],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": ""
+                },
+                {
+                  "key": "page_size",
+                  "value": "20",
+                  "description": ""
+                },
+                {
+                  "key": "unread_only",
+                  "value": "False",
+                  "description": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Delivery Logs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              }
+            ],
+            "description": "List notification delivery logs for the current user.",
+            "url": {
+              "raw": "{{base_url}}/notifications/deliveries?page=1&page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications",
+                "deliveries"
+              ],
+              "variable": [],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": ""
+                },
+                {
+                  "key": "page_size",
+                  "value": "20",
+                  "description": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Notification Preferences",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              }
+            ],
+            "description": "Get notification preferences for the current user.",
+            "url": {
+              "raw": "{{base_url}}/notifications/preferences",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications",
+                "preferences"
+              ],
+              "variable": [],
+              "query": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Notification Preferences",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Update notification preferences for the current user.",
+            "url": {
+              "raw": "{{base_url}}/notifications/preferences",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications",
+                "preferences"
+              ],
+              "variable": [],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"run_failed\": {\n    \"email\": true,\n    \"in_app\": true,\n    \"webhook\": true\n  },\n  \"run_succeeded\": {\n    \"email\": false,\n    \"in_app\": true,\n    \"webhook\": false\n  },\n  \"schedule_missed\": {\n    \"email\": false,\n    \"in_app\": true,\n    \"webhook\": true\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Email Config",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Update email configuration.",
+            "url": {
+              "raw": "{{base_url}}/notifications/preferences/email",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications",
+                "preferences",
+                "email"
+              ],
+              "variable": [],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"alerts@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Webhook Config",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Update webhook configuration (URL and secret).",
+            "url": {
+              "raw": "{{base_url}}/notifications/preferences/webhook",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications",
+                "preferences",
+                "webhook"
+              ],
+              "variable": [],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"secret\": \"top-secret-webhook-key-123456\",\n  \"url\": \"http://localhost:9000/webhook\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Mark All Notifications Read",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              }
+            ],
+            "description": "Mark all notifications as read for the current user.",
+            "url": {
+              "raw": "{{base_url}}/notifications/read-all",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications",
+                "read-all"
+              ],
+              "variable": [],
+              "query": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Unread Count",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              }
+            ],
+            "description": "Get unread notification count for the current user.",
+            "url": {
+              "raw": "{{base_url}}/notifications/unread-count",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications",
+                "unread-count"
+              ],
+              "variable": [],
+              "query": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Mark Notification Read",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Mark a notification as read/unread.",
+            "url": {
+              "raw": "{{base_url}}/notifications/{notification_id}/read",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notifications",
+                ":notification_id",
+                "read"
+              ],
+              "variable": [
+                {
+                  "key": "notification_id",
+                  "value": "{{notification_id}}",
+                  "description": "URL param notification_id"
+                }
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"read\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "9. API Keys",
+      "item": [
+        {
+          "name": "List Api Keys",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              }
+            ],
+            "description": "List API keys for the current user (no raw keys).",
+            "url": {
+              "raw": "{{base_url}}/api-keys",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api-keys"
+              ],
+              "variable": [],
+              "query": []
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Api Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Create a new API key. Raw key returned ONCE in response.",
+            "url": {
+              "raw": "{{base_url}}/api-keys",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api-keys"
+              ],
+              "variable": [],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"ci-runner-key\",\n  \"scopes\": [\n    \"read\",\n    \"run\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Revoke Api Key",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Revoke an API key.",
+            "url": {
+              "raw": "{{base_url}}/api-keys/{key_id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api-keys",
+                ":key_id"
+              ],
+              "variable": [
+                {
+                  "key": "key_id",
+                  "value": "{{key_id}}",
+                  "description": "URL param key_id"
+                }
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"confirm\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "10. Audit Log",
+      "item": [
+        {
+          "name": "List Audit Logs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              }
+            ],
+            "description": "List audit events with filters (admin only).",
+            "url": {
+              "raw": "{{base_url}}/admin/audit-log?actor=&action=&target_type=&target_id=&from_=&to=&page=1&page_size=20&format=json",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "audit-log"
+              ],
+              "variable": [],
+              "query": [
+                {
+                  "key": "actor",
+                  "value": "",
+                  "description": ""
+                },
+                {
+                  "key": "action",
+                  "value": "",
+                  "description": ""
+                },
+                {
+                  "key": "target_type",
+                  "value": "",
+                  "description": ""
+                },
+                {
+                  "key": "target_id",
+                  "value": "",
+                  "description": ""
+                },
+                {
+                  "key": "from_",
+                  "value": "",
+                  "description": ""
+                },
+                {
+                  "key": "to",
+                  "value": "",
+                  "description": ""
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": ""
+                },
+                {
+                  "key": "page_size",
+                  "value": "20",
+                  "description": ""
+                },
+                {
+                  "key": "format",
+                  "value": "json",
+                  "description": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Export Audit Logs Csv",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "Bearer JWT or use X-API-Key: {{api_key}}"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "description": "API Key authentication (optional alternative to Bearer)"
+              }
+            ],
+            "description": "Export audit events as CSV (admin only).",
+            "url": {
+              "raw": "{{base_url}}/admin/audit-log/export?actor=&action=&target_type=&target_id=&from=&to=",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "admin",
+                "audit-log",
+                "export"
+              ],
+              "variable": [],
+              "query": [
+                {
+                  "key": "actor",
+                  "value": "",
+                  "description": ""
+                },
+                {
+                  "key": "action",
+                  "value": "",
+                  "description": ""
+                },
+                {
+                  "key": "target_type",
+                  "value": "",
+                  "description": ""
+                },
+                {
+                  "key": "target_id",
+                  "value": "",
+                  "description": ""
+                },
+                {
+                  "key": "from",
+                  "value": "",
+                  "description": ""
+                },
+                {
+                  "key": "to",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "11. System Health",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Liveness + database reachability (used by CI, Compose, and load balancers).",
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health"
+              ],
+              "variable": [],
+              "query": []
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "admin_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "api_key",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "pipeline_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "run_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "schedule_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "template_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "notification_id",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

@@ -24,6 +24,39 @@ class Settings(BaseSettings):
     ADMIN_EMAIL: str = ""
     ADMIN_PASSWORD: str = ""
 
+    # Scheduler
+    SCHEDULER_ENABLED: bool = True
+    SCHEDULER_MAX_INSTANCES: int = 1
+    SCHEDULER_MISFIRE_GRACE_TIME: int = 60
+    SCHEDULER_ADVISORY_LOCK_ID: int = 123456789
+
+    # API Keys
+    API_KEY_DEFAULT_EXPIRY_DAYS: int = 90
+
+    # Audit Log
+    AUDIT_LOG_RETENTION_DAYS: int = 365
+
+    # Notifications - SMTP
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = ""
+    SMTP_TLS: bool = True
+    SMTP_TIMEOUT: int = 10
+
+    # Notifications - Webhook
+    WEBHOOK_MAX_RETRIES: int = 3
+    WEBHOOK_TIMEOUT: int = 5
+    WEBHOOK_BACKOFF_BASE: float = 2.0
+    WEBHOOK_ALLOW_PRIVATE_IPS: bool = False
+
+    # Notifications - Encryption
+    FERNET_KEY: str = ""
+
+    # SSRF protection
+    SSRF_ALLOW_PRIVATE_IPS: bool = False
+
     @property
     def cors_origins(self) -> list[str]:
         """Parse the comma-separated CORS origins list."""
